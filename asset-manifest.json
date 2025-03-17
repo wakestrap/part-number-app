@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/part-number-app/static/css/main.f3a940b2.css",
+    "main.js": "/part-number-app/static/js/main.3e0a77ef.js",
+    "index.html": "/part-number-app/index.html",
+    "main.f3a940b2.css.map": "/part-number-app/static/css/main.f3a940b2.css.map",
+    "main.3e0a77ef.js.map": "/part-number-app/static/js/main.3e0a77ef.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.f3a940b2.css",
+    "static/js/main.3e0a77ef.js"
+  ]
+}

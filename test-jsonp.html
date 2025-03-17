@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSONP Test Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin-bottom: 12px;
+        }
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 8px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>JSONP Test Tool</h1>
+    
+    <div class="card">
+        <h2>API Configuration</h2>
+        <div class="input-group">
+            <label for="apiUrl">API URL:</label>
+            <input type="text" id="apiUrl" placeholder="Enter Google Apps Script Web App URL">
+        </div>
+        <button onclick="loadStoredUrl()">Load Stored URL</button>
+        <button onclick="saveUrl()">Save URL</button>
+    </div>
+    
+    <div class="card">
+        <h2>Test API Connection</h2>
+        <div class="input-group">
+            <label for="action">Action:</label>
+            <input type="text" id="action" value="getData">
+        </div>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connectionResult"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Add Part Test</h2>
+        <div class="input-group">
+            <label for="testType">Test Type:</label>
+            <select id="testType">
+                <option value="json">JSON Data</option>
+                <option value="params">Individual Parameters</option>
+                <option value="minimal">Minimal Parameters</option>
+            </select>
+        </div>
+        <button onclick="testAddPart()">Test Add Part</button>
+        <div id="addPartResult"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Raw JSONP Request</h2>
+        <div class="input-group">
+            <label for="rawAction">Action:</label>
+            <input type="text" id="rawAction" value="addPart">
+        </div>
+        <div class="input-group">
+            <label for="rawParams">Parameters (JSON):</label>
+            <textarea id="rawParams" rows="5">{
+  "data": "{\"Part Number\":\"TEST123\",\"Description\":\"Test Part\",\"Engineer\":\"Test Engineer\"}"
+}</textarea>
+        </div>
+        <button onclick="makeRawRequest()">Make Raw Request</button>
+        <div id="rawResult"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Console Output</h2>
+        <pre id="consoleOutput"></pre>
+        <button onclick="clearConsole()">Clear Console</button>
+    </div>
+
+    <script>
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load stored API URL if available
+            const storedUrl = localStorage.getItem('apiUrl');
+            if (storedUrl) {
+                document.getElementById('apiUrl').value = storedUrl;
+                logToConsole('Loaded stored API URL: ' + storedUrl);
+            }
+        });
+
+        // Helper function to log to the console div
+        function logToConsole(message, isError = false) {
+            const consoleOutput = document.getElementById('consoleOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            const formattedMessage = `[${timestamp}] ${message}`;
+            
+            if (isError) {
+                consoleOutput.innerHTML += `<span class="error">${formattedMessage}</span>\n`;
+            } else {
+                consoleOutput.innerHTML += formattedMessage + '\n';
+            }
+            
+            // Auto-scroll to bottom
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+            
+            // Also log to browser console
+            if (isError) {
+                console.error(message);
+            } else {
+                console.log(message);
+            }
+        }
+
+        // Clear the console
+        function clearConsole() {
+            document.getElementById('consoleOutput').innerHTML = '';
+        }
+
+        // Load stored URL
+        function loadStoredUrl() {
+            const storedUrl = localStorage.getItem('apiUrl');
+            if (storedUrl) {
+                document.getElementById('apiUrl').value = storedUrl;
+                logToConsole('Loaded stored API URL: ' + storedUrl);
+            } else {
+                logToConsole('No stored API URL found', true);
+            }
+        }
+
+        // Save URL
+        function saveUrl() {
+            const apiUrl = document.getElementById('apiUrl').value.trim();
+            if (apiUrl) {
+                localStorage.setItem('apiUrl', apiUrl);
+                logToConsole('Saved API URL: ' + apiUrl);
+            } else {
+                logToConsole('Please enter an API URL', true);
+            }
+        }
+
+        // Validate and fix URL
+        function validateUrl(url) {
+            let fixedUrl = url.trim();
+            
+            // Add https:// if missing
+            if (!fixedUrl.startsWith('https://') && !fixedUrl.startsWith('http://')) {
+                fixedUrl = 'https://' + fixedUrl;
+                logToConsole('Added https:// to URL');
+            }
+            
+            // Remove trailing slash
+            if (fixedUrl.endsWith('/')) {
+                fixedUrl = fixedUrl.slice(0, -1);
+                logToConsole('Removed trailing slash from URL');
+            }
+            
+            return fixedUrl;
+        }
+
+        // Test connection to the API
+        function testConnection() {
+            const apiUrl = document.getElementById('apiUrl').value.trim();
+            const action = document.getElementById('action').value.trim();
+            
+            if (!apiUrl) {
+                logToConsole('Please enter an API URL', true);
+                return;
+            }
+
+            const fixedUrl = validateUrl(apiUrl);
+            logToConsole('Testing connection to: ' + fixedUrl);
+            logToConsole('Action: ' + action);
+            
+            const resultDiv = document.getElementById('connectionResult');
+            resultDiv.innerHTML = '<p>Testing connection...</p>';
+
+            // Create a unique callback name with timestamp
+            const timestamp = new Date().getTime();
+            const callbackName = 'jsonp_callback_' + timestamp + '_' + Math.round(100000 * Math.random());
+            
+            // Define the callback function
+            window[callbackName] = function(data) {
+                logToConsole('Received response: ' + JSON.stringify(data, null, 2));
+                resultDiv.innerHTML = '<p class="success">Connection successful!</p>';
+                resultDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                // Clean up
+                document.body.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Create a script element
+            const script = document.createElement('script');
+            
+            // Build URL with explicit action parameter
+            const url = `${fixedUrl}?action=${encodeURIComponent(action)}&callback=${encodeURIComponent(callbackName)}&_=${timestamp}`;
+            
+            logToConsole('Request URL: ' + url);
+            script.src = url;
+            
+            // Handle errors
+            script.onerror = function(error) {
+                logToConsole('Script load error: ' + error, true);
+                resultDiv.innerHTML = '<p class="error">Connection failed!</p>';
+                
+                // Clean up
+                document.body.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Add the script to the page
+            document.body.appendChild(script);
+            
+            // Set a timeout
+            setTimeout(function() {
+                if (window[callbackName]) {
+                    logToConsole('Request timed out', true);
+                    resultDiv.innerHTML = '<p class="error">Connection timed out!</p>';
+                    
+                    try {
+                        document.body.removeChild(script);
+                    } catch (e) {
+                        logToConsole('Error removing script: ' + e, true);
+                    }
+                    
+                    delete window[callbackName];
+                }
+            }, 10000);
+        }
+
+        // Test adding a part
+        function testAddPart() {
+            const apiUrl = document.getElementById('apiUrl').value.trim();
+            const testType = document.getElementById('testType').value;
+            
+            if (!apiUrl) {
+                logToConsole('Please enter an API URL', true);
+                return;
+            }
+
+            const fixedUrl = validateUrl(apiUrl);
+            logToConsole('Testing addPart with test type: ' + testType);
+            
+            const resultDiv = document.getElementById('addPartResult');
+            resultDiv.innerHTML = '<p>Sending request...</p>';
+
+            // Create a unique callback name with timestamp
+            const timestamp = new Date().getTime();
+            const callbackName = 'addpart_callback_' + timestamp + '_' + Math.round(100000 * Math.random());
+            
+            // Define the callback function
+            window[callbackName] = function(data) {
+                logToConsole('Received response: ' + JSON.stringify(data, null, 2));
+                
+                if (data.status === 'success') {
+                    resultDiv.innerHTML = '<p class="success">Part added successfully!</p>';
+                } else {
+                    resultDiv.innerHTML = '<p class="error">Failed to add part: ' + (data.message || 'Unknown error') + '</p>';
+                }
+                
+                resultDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                // Clean up
+                document.body.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Create a script element
+            const script = document.createElement('script');
+            
+            // Sample data
+            const sampleData = {
+                "Part Number": "TEST-" + timestamp.toString().substring(8),
+                "Description": "Test Part",
+                "Engineer": "Test Engineer",
+                "A - High Level Category": "TEST",
+                "B - Lower Level Category": "TEST"
+            };
+            
+            // Build URL based on test type
+            let url = `${fixedUrl}?action=addPart`;
+            
+            if (testType === 'json') {
+                // Use JSON data parameter
+                url += `&data=${encodeURIComponent(JSON.stringify(sampleData))}`;
+                logToConsole('Using JSON data: ' + JSON.stringify(sampleData));
+            } else if (testType === 'params') {
+                // Use individual parameters
+                url += `&partNumber=${encodeURIComponent(sampleData["Part Number"])}`;
+                url += `&description=${encodeURIComponent(sampleData["Description"])}`;
+                url += `&engineer=${encodeURIComponent(sampleData["Engineer"])}`;
+                url += `&category=${encodeURIComponent(sampleData["A - High Level Category"])}`;
+                url += `&subcategory=${encodeURIComponent(sampleData["B - Lower Level Category"])}`;
+                logToConsole('Using individual parameters');
+            } else if (testType === 'minimal') {
+                // Use minimal parameters
+                url += `&partNumber=${encodeURIComponent(sampleData["Part Number"])}`;
+                logToConsole('Using minimal parameters');
+            }
+            
+            // Add callback and timestamp
+            url += `&callback=${encodeURIComponent(callbackName)}&_=${timestamp}`;
+            
+            logToConsole('Request URL: ' + url);
+            script.src = url;
+            
+            // Handle errors
+            script.onerror = function(error) {
+                logToConsole('Script load error: ' + error, true);
+                resultDiv.innerHTML = '<p class="error">Request failed!</p>';
+                
+                // Clean up
+                document.body.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Add the script to the page
+            document.body.appendChild(script);
+            
+            // Set a timeout
+            setTimeout(function() {
+                if (window[callbackName]) {
+                    logToConsole('Request timed out', true);
+                    resultDiv.innerHTML = '<p class="error">Request timed out!</p>';
+                    
+                    try {
+                        document.body.removeChild(script);
+                    } catch (e) {
+                        logToConsole('Error removing script: ' + e, true);
+                    }
+                    
+                    delete window[callbackName];
+                }
+            }, 10000);
+        }
+
+        // Make a raw JSONP request
+        function makeRawRequest() {
+            const apiUrl = document.getElementById('apiUrl').value.trim();
+            const action = document.getElementById('rawAction').value.trim();
+            let paramsText = document.getElementById('rawParams').value.trim();
+            
+            if (!apiUrl) {
+                logToConsole('Please enter an API URL', true);
+                return;
+            }
+
+            const fixedUrl = validateUrl(apiUrl);
+            logToConsole('Making raw request with action: ' + action);
+            
+            // Parse params
+            let params = {};
+            try {
+                params = JSON.parse(paramsText);
+                logToConsole('Parsed parameters: ' + JSON.stringify(params));
+            } catch (e) {
+                logToConsole('Error parsing parameters: ' + e, true);
+                return;
+            }
+            
+            const resultDiv = document.getElementById('rawResult');
+            resultDiv.innerHTML = '<p>Sending request...</p>';
+
+            // Create a unique callback name with timestamp
+            const timestamp = new Date().getTime();
+            const callbackName = 'raw_callback_' + timestamp + '_' + Math.round(100000 * Math.random());
+            
+            // Define the callback function
+            window[callbackName] = function(data) {
+                logToConsole('Received response: ' + JSON.stringify(data, null, 2));
+                
+                if (data.status === 'success') {
+                    resultDiv.innerHTML = '<p class="success">Request successful!</p>';
+                } else {
+                    resultDiv.innerHTML = '<p class="error">Request failed: ' + (data.message || 'Unknown error') + '</p>';
+                }
+                
+                resultDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                // Clean up
+                document.body.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Create a script element
+            const script = document.createElement('script');
+            
+            // Build URL
+            let url = `${fixedUrl}?action=${encodeURIComponent(action)}`;
+            
+            // Add other parameters
+            Object.keys(params).forEach(key => {
+                url += `&${key}=${encodeURIComponent(params[key])}`;
+            });
+            
+            // Add callback and timestamp
+            url += `&callback=${encodeURIComponent(callbackName)}&_=${timestamp}`;
+            
+            logToConsole('Request URL: ' + url);
+            script.src = url;
+            
+            // Handle errors
+            script.onerror = function(error) {
+                logToConsole('Script load error: ' + error, true);
+                resultDiv.innerHTML = '<p class="error">Request failed!</p>';
+                
+                // Clean up
+                document.body.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Add the script to the page
+            document.body.appendChild(script);
+            
+            // Set a timeout
+            setTimeout(function() {
+                if (window[callbackName]) {
+                    logToConsole('Request timed out', true);
+                    resultDiv.innerHTML = '<p class="error">Request timed out!</p>';
+                    
+                    try {
+                        document.body.removeChild(script);
+                    } catch (e) {
+                        logToConsole('Error removing script: ' + e, true);
+                    }
+                    
+                    delete window[callbackName];
+                }
+            }, 10000);
+        }
+    </script>
+</body>
+</html>

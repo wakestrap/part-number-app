@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Debug Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin-bottom: 12px;
+        }
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>API Debug Tool</h1>
+    
+    <div class="card">
+        <h2>API Configuration</h2>
+        <div class="input-group">
+            <label for="apiUrl">API URL:</label>
+            <input type="text" id="apiUrl" placeholder="Enter Google Apps Script Web App URL">
+        </div>
+        <button onclick="loadStoredUrl()">Load Stored URL</button>
+        <button onclick="saveUrl()">Save URL</button>
+    </div>
+    
+    <div class="card">
+        <h2>Test API Connection</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connectionResult"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Add Part Test</h2>
+        <div class="input-group">
+            <label for="partNumber">Part Number:</label>
+            <input type="text" id="partNumber" placeholder="Part Number">
+        </div>
+        <div class="input-group">
+            <label for="description">Description:</label>
+            <input type="text" id="description" placeholder="Description">
+        </div>
+        <div class="input-group">
+            <label for="engineer">Engineer:</label>
+            <input type="text" id="engineer" placeholder="Engineer">
+        </div>
+        <div class="input-group">
+            <label for="category">High Level Category:</label>
+            <input type="text" id="category" placeholder="Category">
+        </div>
+        <div class="input-group">
+            <label for="subcategory">Low Level Category:</label>
+            <input type="text" id="subcategory" placeholder="Subcategory">
+        </div>
+        <button onclick="testAddPart()">Test Add Part</button>
+        <div id="addPartResult"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Console Output</h2>
+        <pre id="consoleOutput"></pre>
+        <button onclick="clearConsole()">Clear Console</button>
+    </div>
+
+    <script>
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load stored API URL if available
+            const storedUrl = localStorage.getItem('apiUrl');
+            if (storedUrl) {
+                document.getElementById('apiUrl').value = storedUrl;
+                logToConsole('Loaded stored API URL: ' + storedUrl);
+            }
+        });
+
+        // Helper function to log to the console div
+        function logToConsole(message, isError = false) {
+            const consoleOutput = document.getElementById('consoleOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            const formattedMessage = `[${timestamp}] ${message}`;
+            
+            if (isError) {
+                consoleOutput.innerHTML += `<span class="error">${formattedMessage}</span>\n`;
+            } else {
+                consoleOutput.innerHTML += formattedMessage + '\n';
+            }
+            
+            // Auto-scroll to bottom
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+            
+            // Also log to browser console
+            if (isError) {
+                console.error(message);
+            } else {
+                console.log(message);
+            }
+        }
+
+        // Clear the console
+        function clearConsole() {
+            document.getElementById('consoleOutput').innerHTML = '';
+        }
+
+        // Load stored URL
+        function loadStoredUrl() {
+            const storedUrl = localStorage.getItem('apiUrl');
+            if (storedUrl) {
+                document.getElementById('apiUrl').value = storedUrl;
+                logToConsole('Loaded stored API URL: ' + storedUrl);
+            } else {
+                logToConsole('No stored API URL found', true);
+            }
+        }
+
+        // Save URL
+        function saveUrl() {
+            const apiUrl = document.getElementById('apiUrl').value.trim();
+            if (apiUrl) {
+                localStorage.setItem('apiUrl', apiUrl);
+                logToConsole('Saved API URL: ' + apiUrl);
+            } else {
+                logToConsole('Please enter an API URL', true);
+            }
+        }
+
+        // Test connection to the API
+        function testConnection() {
+            const apiUrl = document.getElementById('apiUrl').value.trim();
+            if (!apiUrl) {
+                logToConsole('Please enter an API URL', true);
+                return;
+            }
+
+            logToConsole('Testing connection to: ' + apiUrl);
+            const resultDiv = document.getElementById('connectionResult');
+            resultDiv.innerHTML = '<p>Testing connection...</p>';
+
+            // Create a unique callback name
+            const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+            
+            // Define the callback function
+            window[callbackName] = function(data) {
+                logToConsole('Received response: ' + JSON.stringify(data));
+                resultDiv.innerHTML = '<p class="success">Connection successful!</p>';
+                resultDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                // Clean up
+                document.body.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Create a script element
+            const script = document.createElement('script');
+            script.src = `${apiUrl}?action=getData&callback=${callbackName}&_=${new Date().getTime()}`;
+            
+            logToConsole('Request URL: ' + script.src);
+            
+            // Handle errors
+            script.onerror = function(error) {
+                logToConsole('Script load error: ' + error, true);
+                resultDiv.innerHTML = '<p class="error">Connection failed!</p>';
+                
+                // Clean up
+                document.body.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Add the script to the page
+            document.body.appendChild(script);
+            
+            // Set a timeout
+            setTimeout(function() {
+                if (window[callbackName]) {
+                    logToConsole('Request timed out', true);
+                    resultDiv.innerHTML = '<p class="error">Connection timed out!</p>';
+                    
+                    try {
+                        document.body.removeChild(script);
+                    } catch (e) {
+                        logToConsole('Error removing script: ' + e, true);
+                    }
+                    
+                    delete window[callbackName];
+                }
+            }, 10000);
+        }
+
+        // Test adding a part
+        function testAddPart() {
+            const apiUrl = document.getElementById('apiUrl').value.trim();
+            if (!apiUrl) {
+                logToConsole('Please enter an API URL', true);
+                return;
+            }
+
+            // Get form values
+            const partData = {
+                partNumber: document.getElementById('partNumber').value.trim(),
+                description: document.getElementById('description').value.trim(),
+                engineer: document.getElementById('engineer').value.trim(),
+                category: document.getElementById('category').value.trim(),
+                subcategory: document.getElementById('subcategory').value.trim()
+            };
+
+            logToConsole('Testing addPart with data: ' + JSON.stringify(partData));
+            const resultDiv = document.getElementById('addPartResult');
+            resultDiv.innerHTML = '<p>Sending request...</p>';
+
+            // Create a unique callback name
+            const callbackName = 'addpart_callback_' + Math.round(100000 * Math.random());
+            
+            // Define the callback function
+            window[callbackName] = function(data) {
+                logToConsole('Received response: ' + JSON.stringify(data));
+                
+                if (data.status === 'success') {
+                    resultDiv.innerHTML = '<p class="success">Part added successfully!</p>';
+                } else {
+                    resultDiv.innerHTML = '<p class="error">Failed to add part: ' + data.message + '</p>';
+                }
+                
+                resultDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                // Clean up
+                document.body.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Create a script element
+            const script = document.createElement('script');
+            const jsonData = JSON.stringify(partData);
+            script.src = `${apiUrl}?action=addPart&data=${encodeURIComponent(jsonData)}&callback=${callbackName}&_=${new Date().getTime()}`;
+            
+            logToConsole('Request URL: ' + script.src);
+            
+            // Handle errors
+            script.onerror = function(error) {
+                logToConsole('Script load error: ' + error, true);
+                resultDiv.innerHTML = '<p class="error">Request failed!</p>';
+                
+                // Try a direct approach without data parameter
+                logToConsole('Trying fallback approach...', true);
+                
+                const fallbackCallback = 'fallback_' + Math.round(100000 * Math.random());
+                
+                window[fallbackCallback] = function(data) {
+                    logToConsole('Received fallback response: ' + JSON.stringify(data));
+                    
+                    if (data.status === 'success') {
+                        resultDiv.innerHTML = '<p class="success">Part added successfully (fallback)!</p>';
+                    } else {
+                        resultDiv.innerHTML = '<p class="error">Failed to add part (fallback): ' + data.message + '</p>';
+                    }
+                    
+                    resultDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                    
+                    // Clean up
+                    document.body.removeChild(fallbackScript);
+                    delete window[fallbackCallback];
+                };
+                
+                const fallbackScript = document.createElement('script');
+                
+                // Try with direct parameters instead of JSON
+                fallbackScript.src = `${apiUrl}?action=addPart&partNumber=${encodeURIComponent(partData.partNumber)}&description=${encodeURIComponent(partData.description)}&engineer=${encodeURIComponent(partData.engineer)}&category=${encodeURIComponent(partData.category)}&subcategory=${encodeURIComponent(partData.subcategory)}&callback=${fallbackCallback}&_=${new Date().getTime()}`;
+                
+                logToConsole('Fallback URL: ' + fallbackScript.src);
+                
+                fallbackScript.onerror = function() {
+                    logToConsole('Fallback script also failed', true);
+                    resultDiv.innerHTML = '<p class="error">All requests failed!</p>';
+                    
+                    // Clean up
+                    document.body.removeChild(fallbackScript);
+                    delete window[fallbackCallback];
+                };
+                
+                // Add the fallback script to the page
+                document.body.appendChild(fallbackScript);
+                
+                // Clean up original script
+                document.body.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Add the script to the page
+            document.body.appendChild(script);
+            
+            // Set a timeout
+            setTimeout(function() {
+                if (window[callbackName]) {
+                    logToConsole('Request timed out', true);
+                    resultDiv.innerHTML = '<p class="error">Request timed out!</p>';
+                    
+                    try {
+                        document.body.removeChild(script);
+                    } catch (e) {
+                        logToConsole('Error removing script: ' + e, true);
+                    }
+                    
+                    delete window[callbackName];
+                }
+            }, 10000);
+        }
+    </script>
+</body>
+</html>
